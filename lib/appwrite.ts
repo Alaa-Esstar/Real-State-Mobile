@@ -1,5 +1,6 @@
-import { Account, Avatars, Client } from "react-native-appwrite";
+import { Account, Avatars, Client, OAuthProvider } from "react-native-appwrite";
 import * as Linking from "expo-linking";
+import { openAuthSessionAsync } from "expo-web-browser";;
 
 export const config = {
     platform: "com.personal.restate",
@@ -16,8 +17,52 @@ export const account = new Account(client);
 export async function login() {
     try {
         const redirectURL = Linking.createURL("/");
+
+        const response = await account.createOAuth2Token(OAuthProvider.Google, redirectURL);
+
+        if (!response) throw new Error("Failed to login");
+
+        const browserResult = await openAuthSessionAsync(response.toString(), redirectURL);
+
+        if (browserResult.type !== "success") throw new Error("Failed to login");
+
+        const url = new URL(browserResult.url);
+
+        const secret = url.searchParams.get("secret")?.toString();
+        const userId = url.searchParams.get("userId")?.toString();
+
+        if (!secret || !userId) throw new Error("Failed to login");
+
+        const session = await account.createSession(userId, secret);
+
+        if (!session) throw new Error("Failed to Create a Session");
+
+        return true;
     } catch (error) {
         console.error(error);
         return false;
+    }
+}
+
+export async function logout() {
+    try {
+        await account.deleteSession("current");
+        return true;
+    } catch (error) {
+        console.error(error);
+        return false;
+    }
+}
+
+export async function getCurrentUser() {
+    try {
+        const response = await account.get();
+        if (response.$id) {
+            const userAvatar = avatar.getInitials(response.name)
+            return { ...response, avatar: userAvatar.toString() };
+        }
+    } catch (error) {
+        console.error(error);
+        return null;
     }
 }
